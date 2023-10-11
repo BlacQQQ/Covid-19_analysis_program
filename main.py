@@ -1,44 +1,108 @@
 import pandas as pd
 
-import downloading_file
-import index_df
+import data_frame
+import files
 import statistic
-import variables
+import user_input
 
-downloading_file.downloading_file_from_github()
-raw_df = pd.read_csv("covid_data.csv", index_col="date")
-raw_df.index = pd.to_datetime(raw_df.index, format="%Y-%m-%d")
-datamenu = index_df.DataMenu(raw_df)
-while True:
-    print("1. Ropocznij analize statystyczna dla 1 panstwa")
-    print("2. Rozpocznij analize statystyczna dla 2 panstw (work in progress)")
-    print("3. Wyjscie")
-    program_menu = int(input("Wybierz, co chcesz zrobic: "))
-    var = variables.Variables(raw_df)
-    if program_menu == 3:
-        exit()
-    elif program_menu == 1 or program_menu == 2:
-        user_nat = []
-        digits_of_nat = 1
-        if program_menu == 2:
-            digits_of_nat = int(input("Ile krajow chcesz porownac?"))
-        for _ in range(digits_of_nat):
-            user_nat.append(var.nationality())
-        user_var = var.selecting_variables()
-        user_date = datamenu.index_range()
-        stat = statistic.Statistic(user_nat, user_var, user_date, raw_df)
-        arg_for_statistic = stat.process_data()
+
+class Main:
+    def __init__(self):
+        self.raw_df = pd.read_csv("covid_data.csv", index_col="date")
+        self.raw_df.index = pd.to_datetime(self.raw_df.index, format="%Y-%m-%d")
+        self.var = data_frame.Variables(self.raw_df)
+        self.user_input = user_input
+        self.user_nat = None
+        self.user_var = None
+        self.user_date = None
+
+    @staticmethod
+    def display_menu():
+        print("1. Rozpocznij analizę statystyczną")
+        print("2. Wczytaj parametry z pliku")
+        print("3. Wyjście")
+
+    @staticmethod
+    def display_sub_menu():
         print("1. Statystyka opisowa")
-        print("2. Statystyka matematyczna")
-        print("3. Wykresy")
-        print("4. Powrot")
-        menu_for_1_nat = int(input("Wybierz, co chcesz zrobic:"))
-        match menu_for_1_nat:
-            case 4:
-                pass
-            case 1:
-                arg_for_statistic.long_report()
-            case 2:
-                print("work in progress")
+        print("2. Wykresy")
+        print("3. Statystyka matematyczna")
+        print("4. Zapisz wybrane dane do pliku konfiguracyjnego")
+        print("5. Powrót")
+
+    def main_menu(self):
+        # files.download_or_update_covid_data()
+        self.display_menu()
+        program_menu = self.user_input.int_input("Wybierz, co chcesz zrobić: ")
+        match program_menu:
             case 3:
-                arg_for_statistic.graphs()
+                return False
+            case 2:
+                config_data = files.Config.load_config_from_file()
+                if config_data is not None:
+                    self.user_nat, self.user_var, self.user_date = files.Config.extract_config(config_data)
+                    if self.user_nat is not None:
+                        self.sub_menu()
+                    else:
+                        return True
+            case 1:
+                self.user_nat = self.var.nationality()
+                if self.user_nat is None:
+                    return True
+                self.user_var = self.var.variables()
+                if self.user_var is None:
+                    return True
+                self.user_date = self.var.date_index()
+                if self.user_date is None:
+                    return True
+                self.sub_menu()
+        return True
+
+    def sub_menu(self):
+        self.display_sub_menu()
+        stat = statistic.Statistic(self.user_nat, self.user_var, self.user_date, self.raw_df)
+        stat.clean_data()
+        menu_for_1_nat = self.user_input.int_input("Wybierz, co chcesz zrobić: ")
+        match menu_for_1_nat:
+            case 5:
+                del self.user_var, self.user_date, self.user_nat
+            case 1:
+                descriptive_statistics_menu = self.user_input.int_input(
+                    "1. Wykonać statystyke opisową dla podanych danych\n"
+                    "2. Wczytać istniejący plik z reportem\n"
+                    "Wybierz, co chcesz zrobić: ")
+                if descriptive_statistics_menu == 1:
+                    stat.generate_reports()
+                    user_choice = self.user_input.int_input(
+                        "1. Czy chcesz wczytać powstały raport? (Tak/Nie): ")
+                    if user_choice == "tak":
+                        stat.read_reports()
+                    elif user_choice == "nie":
+                        pass
+                elif descriptive_statistics_menu == 2:
+                    stat.read_reports()
+            case 2:
+                graph_menu = self.user_input.int_input(
+                    "1. Wspólny wykres\n"
+                    "2. 2 osobne wykresy\n"
+                    "Wybierz, co chcesz zrobić: ")
+                if graph_menu == 1:
+                    stat.generate_combined_plot()
+                elif graph_menu == 2:
+                    stat.generate_individual_plots()
+                    user_choice = self.user_input.str_input("Czy chcesz wygenerować raport? (Tak/Nie): ")
+                    if user_choice == "tak":
+                        stat.generate_reports()
+                    elif user_choice == "nie":
+                        pass
+            case 3:
+                print("work in progress")
+            case 4:
+                file = files.Config(self.user_nat, self.user_var, self.user_date)
+                file.save_config_to_file()
+
+
+if __name__ == "__main__":
+    main = Main()
+    while main.main_menu():
+        pass
