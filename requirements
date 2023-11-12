@@ -1,6 +1,11 @@
-pandas==1.3.3
+json==2.0.9
 matplotlib==3.4.3
-dateutil==2.8.2
-openpyxl==3.0.18
-seaborn==0.11.2
-jupyter==1.0.0
+pandas==1.3.3
+mdates==1.8.3
+ticker==0.18.3
+ydata_profiling==3.0.0
+datetime==4.3
+relativedelta==0.13.0
+Github==3.3.0
+scipy==1.7.3
+statsmodels==0.13.1
