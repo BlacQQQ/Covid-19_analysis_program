@@ -25,7 +25,7 @@ Covid-19 Statistics Analysis Tool is a Python-based tool for analyzing statistic
 
 ## Data Source
 
-The COVID-19 data used in this project is sourced from [GitHub User's Repository](link/do/repository).
+The COVID-19 data used in this project is sourced from [GitHub User's Repository](https://github.com/owid/covid-19-data).
 
 ## Requirements
 
