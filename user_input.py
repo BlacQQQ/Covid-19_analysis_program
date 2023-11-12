@@ -4,7 +4,7 @@ def int_input(prompt):
             user_inp = int(input(prompt))
             return user_inp
         except ValueError:
-            print("Proszę podać cyfrę z zakresu")
+            print("Please enter a digit")
 
 
 def str_input(prompt):
@@ -14,6 +14,6 @@ def str_input(prompt):
             if user_inp.strip():
                 return user_inp.strip().lower()
             else:
-                raise ValueError("Nie wprowadzono żadnych danych.")
+                raise ValueError("No data has been entered")
         except ValueError:
-            print("Prosze podac tak lub nie")
+            print("Please indicate yes or no")

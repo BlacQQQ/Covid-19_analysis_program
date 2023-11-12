@@ -1,8 +1,10 @@
+import os
+
 import pandas as pd
 
+import analysis
 import data_frame
 import files
-import statistic
 import user_input
 
 
@@ -12,94 +14,106 @@ class Main:
         self.raw_df.index = pd.to_datetime(self.raw_df.index, format="%Y-%m-%d")
         self.var = data_frame.Variables(self.raw_df)
         self.user_input = user_input
+        self.list_of_continents = sorted(self.raw_df["location"].unique())
         self.user_nat = None
         self.user_var = None
         self.user_date = None
-
-    @staticmethod
-    def display_menu():
-        print("1. Rozpocznij analizę statystyczną")
-        print("2. Wczytaj parametry z pliku")
-        print("3. Wyjście")
-
-    @staticmethod
-    def display_sub_menu():
-        print("1. Statystyka opisowa")
-        print("2. Wykresy")
-        print("3. Statystyka matematyczna")
-        print("4. Zapisz wybrane dane do pliku konfiguracyjnego")
-        print("5. Powrót")
+        self.update_done = False
+        self.list_of_report_names = None
 
     def main_menu(self):
-        # files.download_or_update_covid_data()
-        self.display_menu()
-        program_menu = self.user_input.int_input("Wybierz, co chcesz zrobić: ")
+        if not self.update_done:
+            files.download_or_update_covid_data()
+            self.update_done = True
+        print("1. Start statistical analysis \n"
+              "2. Load parameters from a file \n"
+              "3. Exit")
+        program_menu = self.user_input.int_input("Choose what you want to do: ")
         match program_menu:
             case 3:
                 return False
-            case 2:
-                config_data = files.Config.load_config_from_file()
-                if config_data is not None:
-                    self.user_nat, self.user_var, self.user_date = files.Config.extract_config(config_data)
-                    if self.user_nat is not None:
-                        self.sub_menu()
-                    else:
-                        return True
             case 1:
                 self.user_nat = self.var.nationality()
-                if self.user_nat is None:
+                if not self.user_nat:
                     return True
                 self.user_var = self.var.variables()
-                if self.user_var is None:
+                if not self.user_nat:
                     return True
-                self.user_date = self.var.date_index()
-                if self.user_date is None:
+                self.user_date = data_frame.TimePeriod.date_index(self.var)
+                if not self.user_date:
+                    return True
+                self.sub_menu()
+            case 2:
+                config = files.Config(self.user_nat, self.user_var, self.user_date).load_from_file()
+                if config:
+                    self.user_nat, self.user_var, self.user_date = config
+                else:
                     return True
                 self.sub_menu()
         return True
 
     def sub_menu(self):
-        self.display_sub_menu()
-        stat = statistic.Statistic(self.user_nat, self.user_var, self.user_date, self.raw_df)
-        stat.clean_data()
-        menu_for_1_nat = self.user_input.int_input("Wybierz, co chcesz zrobić: ")
-        match menu_for_1_nat:
-            case 5:
-                del self.user_var, self.user_date, self.user_nat
-            case 1:
-                descriptive_statistics_menu = self.user_input.int_input(
-                    "1. Wykonać statystyke opisową dla podanych danych\n"
-                    "2. Wczytać istniejący plik z reportem\n"
-                    "Wybierz, co chcesz zrobić: ")
-                if descriptive_statistics_menu == 1:
-                    stat.generate_reports()
-                    user_choice = self.user_input.int_input(
-                        "1. Czy chcesz wczytać powstały raport? (Tak/Nie): ")
-                    if user_choice == "tak":
-                        stat.read_reports()
-                    elif user_choice == "nie":
-                        pass
-                elif descriptive_statistics_menu == 2:
-                    stat.read_reports()
-            case 2:
-                graph_menu = self.user_input.int_input(
-                    "1. Wspólny wykres\n"
-                    "2. 2 osobne wykresy\n"
-                    "Wybierz, co chcesz zrobić: ")
-                if graph_menu == 1:
-                    stat.generate_combined_plot()
-                elif graph_menu == 2:
-                    stat.generate_individual_plots()
-                    user_choice = self.user_input.str_input("Czy chcesz wygenerować raport? (Tak/Nie): ")
-                    if user_choice == "tak":
-                        stat.generate_reports()
-                    elif user_choice == "nie":
-                        pass
-            case 3:
-                print("work in progress")
-            case 4:
-                file = files.Config(self.user_nat, self.user_var, self.user_date)
-                file.save_config_to_file()
+        while True:
+            print("1. Descriptive statistics \n"
+                  "2. Graphs \n"
+                  "3. Mathematical statistics \n"
+                  "4. Save the selected data to the configuration file \n"
+                  "5. Return")
+            data = analysis.Data(self.user_nat, self.user_var, self.user_date, self.raw_df)
+            reports = analysis.Reports(self.user_nat, self.user_var, data)
+            sub_menu = self.user_input.int_input("Choose what you want to do: ")
+            if not sub_menu == 5:
+                data.filtered()
+            match sub_menu:
+                case 5:
+                    return False
+                case 1:
+                    descriptive_statistics_menu = self.user_input.int_input(
+                        "1. Perform descriptive statistics for the given data \n"
+                        "2. Load an existing report file \n"
+                        "Choose what you want to do: ")
+                    if descriptive_statistics_menu == 1:
+                        self.list_of_report_names = reports.generate()
+                    elif descriptive_statistics_menu == 2:
+                        if not self.list_of_report_names or len(self.list_of_report_names) < 1:
+                            existing_reports = [file for file in os.listdir() if
+                                                file.endswith(".json") and file.startswith("Report_for_")]
+                            if existing_reports:
+                                print("Existing reports: ")
+                                for i, existing_report in enumerate(existing_reports, start=1):
+                                    print(f"{i}. {existing_report}")
+                                selected_report_index = self.user_input.int_input("Select the report to load: ")
+                                if 1 <= selected_report_index <= len(existing_reports):
+                                    selected_report_name = existing_reports[selected_report_index - 1]
+                                    reports.read(selected_report_name)
+                                else:
+                                    print("Invalid selection")
+                            else:
+                                print("No existing reports found")
+                case 2:
+                    available_plot_types = ["Line Plot", "Bar Plot", "Horizontal Bar Plot", "Grouped Bar Plot"]
+                    print("Available graph types:")
+                    for i, plot_type in enumerate(available_plot_types, start=1):
+                        print(f"{i}. {plot_type}")
+                    chosen_plot_index = user_input.int_input("Select graph type: ") - 1
+                    if chosen_plot_index < 0 or chosen_plot_index >= len(available_plot_types):
+                        print("Incorrect selection")
+                    else:
+                        chosen_plot_type = available_plot_types[chosen_plot_index]
+                        graph_menu = self.user_input.int_input(
+                            "1. Separate graphs \n"
+                            "2. Joint graph \n"
+                            "Choose what you want to do: ")
+                        graphs = analysis.Graphs(self.user_var, graph_menu, chosen_plot_type, self.user_nat, data)
+                        graphs.graph_choice()
+                case 3:
+                    tests = analysis.StatisticsTest(data)
+                    tests.choice()
+                case 4:
+                    file = files.Config(self.user_nat, self.user_var, self.user_date)
+                    file.save_to_file()
+                case _:
+                    return True
 
 
 if __name__ == "__main__":
